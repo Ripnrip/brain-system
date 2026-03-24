@@ -1,8 +1,19 @@
 #!/bin/bash
-# Multi-Vault Brain CLI
+# Multi-Vault Brain CLI - Enhanced with Color, JSON Output, and Watch Mode
 
 VAULTS="$HOME/Library/Mobile Documents/iCloud~md~obsidian/Documents"
 MULTI_BRAIN="$HOME/.brain/multi-brain.py"
+BRAIN_DIR="$HOME/.brain"
+
+# Colors for terminal output
+export RED='\033[0;31m'
+export GREEN='\033[0;32m'
+export YELLOW='\033[1;33m'
+export BLUE='\033[0;34m'
+export PURPLE='\033[0;35m'
+export CYAN='\033[0;36m'
+export BOLD='\033[1m'
+export NC='\033[0m' # No Color
 
 # Show vaults if no args
 if [ $# -eq 0 ]; then
@@ -10,24 +21,46 @@ if [ $# -eq 0 ]; then
   exit 0
 fi
 
+# Extract flags (keep them for Python to process)
+FLAGS=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --json|--watch|-v|--verbose)
+      FLAGS="$FLAGS $1"
+      shift
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+CMD="$1"
+shift
+
 # Handle commands
-case "$1" in
-  vaults|search|tasks|add-task|sync|stats)
-    python3 "$MULTI_BRAIN" "$@"
+case "$CMD" in
+  vaults|search|tasks|add-task|sync|stats|serve|export|import|backup|graph|doctor|config|logs|help|--help|-h)
+    # Run Python with all arguments including flags
+    python3 "$MULTI_BRAIN" "$CMD" "$@" $FLAGS
     ;;
   cd)
     # Change to vault directory
-    vault="${2:-realm}"
-    cd "$VAULTS/$vault" 2>/dev/null || echo "Vault '$vault' not found"
+    vault="${1:-realm}"
+    cd "$VAULTS/$vault" 2>/dev/null || echo -e "${RED}Vault '$vault' not found${NC}"
     exec $SHELL
     ;;
   open)
     # Open vault in Obsidian
-    vault="${2:-realm}"
+    vault="${1:-realm}"
     open -a "Obsidian" "$VAULTS/$vault"
+    ;;
+  version|--version|-v)
+    echo -e "${CYAN}🧠 Brain CLI v2.0${NC}"
+    echo -e "Enhanced multi-vault knowledge management system"
     ;;
   *)
     # Try to run as vault-local command
-    python3 "$MULTI_BRAIN" "$@"
+    python3 "$MULTI_BRAIN" "$CMD" "$@" $FLAGS
     ;;
 esac
