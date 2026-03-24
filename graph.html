@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧠 Brain Graph Visualization</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a0f;
+            color: #eee;
+            overflow: hidden;
+        }
+        #graph-container {
+            width: 100vw;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+        .controls {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(15, 15, 25, 0.95);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            max-width: 300px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .controls h2 {
+            font-size: 1.3rem;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .stats {
+            font-size: 0.8rem;
+            opacity: 0.7;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .section {
+            margin-bottom: 20px;
+        }
+        .section-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.5;
+            margin-bottom: 10px;
+        }
+        .vault-selector {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .vault-btn {
+            padding: 8px 14px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 16px;
+            background: transparent;
+            color: #fff;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+        .vault-btn.active, .vault-btn:hover {
+            background: rgba(99, 102, 241, 0.3);
+            border-color: #6366f1;
+        }
+        .search-box {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        .search-box input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 10px;
+            background: rgba(255,255,255,0.05);
+            color: #fff;
+            font-size: 0.9rem;
+            box-sizing: border-box;
+        }
+        .search-box input:focus {
+            outline: none;
+            border-color: #6366f1;
+            background: rgba(255,255,255,0.08);
+        }
+        .legend {
+            margin-top: 15px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 0.8rem;
+        }
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        .dot-realm { background: #6366f1; }
+        .dot-apple { background: #22c55e; }
+        .dot-remote { background: #f59e0b; }
+        .dot-second { background: #ec4899; }
+        .dot-assets { background: #8b5cf6; }
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 2000;
+            transition: opacity 0.3s;
+        }
+        .loading.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255,255,255,0.1);
+            border-top-color: #6366f1;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .loading p {
+            font-size: 0.9rem;
+        }
+        .loading-small {
+            font-size: 0.75rem;
+            opacity: 0.6;
+            margin-top: 10px;
+        }
+        .error {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 2001;
+            background: rgba(200, 50, 50, 0.9);
+            border-radius: 16px;
+            padding: 30px;
+            max-width: 400px;
+        }
+        .error button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 8px;
+            color: #fff;
+            cursor: pointer;
+        }
+        .node-info {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(15, 15, 25, 0.95);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 20px;
+            max-width: 350px;
+            max-height: 300px;
+            overflow-y: auto;
+            display: none;
+            z-index: 1001;
+            backdrop-filter: blur(10px);
+        }
+        .node-info.visible {
+            display: block;
+        }
+        .node-info h3 {
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+            color: #6366f1;
+        }
+        .node-info .vault {
+            font-size: 0.8rem;
+            opacity: 0.6;
+            margin-bottom: 10px;
+        }
+        .node-info .content {
+            font-size: 0.85rem;
+            opacity: 0.8;
+            line-height: 1.5;
+            margin-bottom: 15px;
+        }
+        .node-info .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+        .tag {
+            padding: 4px 10px;
+            background: rgba(99, 102, 241, 0.2);
+            border-radius: 12px;
+            font-size: 0.75rem;
+        }
+        .node-info .close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 1.2rem;
+            cursor: pointer;
+            opacity: 0.5;
+        }
+        .node-info .close:hover {
+            opacity: 1;
+        }
+        .back-btn {
+            display: inline-block;
+            padding: 8px 16px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            color: #fff;
+            text-decoration: none;
+            font-size: 0.85rem;
+            margin-bottom: 15px;
+        }
+        .back-btn:hover {
+            background: rgba(255,255,255,0.15);
+        }
+    </style>
+</head>
+<body>
+    <div id="loading" class="loading">
+        <div class="loading-spinner"></div>
+        <p>Loading brain graph...</p>
+        <p class="loading-small">Optimizing 1,422 notes and 10,517 connections...</p>
+    </div>
+
+    <div id="error" class="error" style="display: none;">
+        <h3>⚠️ Graph Error</h3>
+        <p>Unable to load the graph visualization.</p>
+        <button onclick="location.reload()">Retry</button>
+    </div>
+
+    <div id="graph-container"></div>
+
+    <div class="controls">
+        <a href="/" class="back-btn">← Back to Search</a>
+
+        <h2>🧠 Brain Graph</h2>
+        <p class="stats" id="stats">Initializing...</p>
+
+        <div class="section">
+            <div class="section-title">Filter by Vault</div>
+            <div class="vault-selector">
+                <button class="vault-btn active" data-vault="all">All Vaults</button>
+                <button class="vault-btn" data-vault="realm">Realm (692)</button>
+                <button class="vault-btn" data-vault="apple">Apple (662)</button>
+                <button class="vault-btn" data-vault="remote">Remote (29)</button>
+                <button class="vault-btn" data-vault="second">Second (37)</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Search Filter</div>
+            <div class="search-box">
+                <input type="text" id="search" placeholder="Filter notes...">
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Vault Colors</div>
+            <div class="legend">
+                <div class="legend-item"><span class="legend-dot dot-realm"></span> Realm</div>
+                <div class="legend-item"><span class="legend-dot dot-apple"></span> Apple</div>
+                <div class="legend-item"><span class="legend-dot dot-remote"></span> Remote</div>
+                <div class="legend-item"><span class="legend-dot dot-second"></span> Second</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="node-info" id="node-info">
+        <button class="close" onclick="document.getElementById('node-info').classList.remove('visible')">&times;</button>
+        <h3 id="node-title">Note Title</h3>
+        <p class="vault" id="node-vault">Vault</p>
+        <p class="content" id="node-content"></p>
+        <div class="tags" id="node-tags"></div>
+    </div>
+
+    <script type="module">
+        import { Graph } from 'https://cdn.jsdelivr.net/npm/@cosmos.gl/graph@2.0.0/dist/graph.esm.min.js';
+
+        const VAULT_COLORS = {
+            realm: [0.39, 0.4, 0.95],
+            apple: [0.13, 0.77, 0.37],
+            remote: [0.96, 0.62, 0.04],
+            second: [0.93, 0.28, 0.6],
+            assets: [0.55, 0.36, 0.96]
+        };
+
+        const LINK_COLORS = {
+            wikilink: [0.39, 0.4, 0.95, 0.8],
+            similar: [0.13, 0.77, 0.37, 0.4],
+            tag: [0.96, 0.62, 0.04, 0.4],
+            folder: [0.93, 0.28, 0.6, 0.4],
+            'cross-vault': [0.55, 0.36, 0.96, 0.3]
+        };
+
+        let currentVault = 'all';
+        let searchQuery = '';
+        let graph = null;
+        let noteIndex = new Map();
+
+        // Timeout to show error if loading takes too long
+        setTimeout(() => {
+            const loading = document.getElementById('loading');
+            if (loading && loading.style.display !== 'none') {
+                loading.innerHTML = `
+                    <div class="loading-spinner"></div>
+                    <p>Taking longer than expected...</p>
+                    <p class="loading-small">Large graphs can take 30-60 seconds to initialize</p>
+                `;
+            }
+        }, 10000);
+
+        // Fatal error timeout
+        setTimeout(() => {
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            if (loading && loading.style.display !== 'none' && !graph) {
+                loading.style.display = 'none';
+                error.style.display = 'block';
+            }
+        }, 60000);
+
+        async function fetchGraphData(vault, query = '') {
+            const url = `/graph?vault=${vault}&q=${encodeURIComponent(query)}`;
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return await response.json();
+        }
+
+        async function initGraph() {
+            try {
+                const startTime = Date.now();
+
+                // Fetch data
+                graphData = await fetchGraphData('all', '');
+
+                // Update loading message
+                const loading = document.getElementById('loading');
+                loading.innerHTML = `
+                    <div class="loading-spinner"></div>
+                    <p>Initializing graph...</p>
+                    <p class="loading-small">${graphData.points.length} nodes, ${graphData.links.length} links</p>
+                `;
+
+                // Limit to top 800 most connected notes for better performance
+                const sortedPoints = graphData.points
+                    .map((p, i) => ({...p, originalIndex: i}))
+                    .sort((a, b) => (b.connections || 0) - (a.connections || 0))
+                    .slice(0, 800);
+
+                const topIndices = new Set(sortedPoints.map(p => p.originalIndex));
+                const filteredLinks = graphData.links.filter(l =>
+                    topIndices.has(l.source) && topIndices.has(l.target)
+                );
+
+                // Create filtered points list
+                const filteredPoints = sortedPoints;
+
+                console.log(`Loading ${filteredPoints.length} nodes, ${filteredLinks.length} links`);
+
+                const container = document.getElementById('graph-container');
+
+                const config = {
+                    spaceSize: 4096,
+                    simulationFriction: 0.6,
+                    simulationGravity: 0.1,
+                    simulationRepulsion: 0.8,
+                    curvedLinks: true,
+                    fitViewOnInit: true,
+                    fitViewDelay: 300,
+                    fitViewPadding: 0.25,
+                    enableDrag: true,
+                    pointSize: 7,
+                    linkWidth: 1.5,
+                    onDragEnd: (pointIndex) => showNodeInfo(pointIndex),
+                    onClick: (pointIndex) => showNodeInfo(pointIndex)
+                };
+
+                graph = new Graph(container, config);
+
+                // Set point positions (circle layout)
+                const pointPositions = new Float32Array(filteredPoints.length * 2);
+                const angleStep = (Math.PI * 2) / filteredPoints.length;
+
+                for (let i = 0; i < filteredPoints.length; i++) {
+                    const angle = i * angleStep;
+                    const radius = 1400;
+                    pointPositions[i * 2] = Math.cos(angle) * radius + 2048;
+                    pointPositions[i * 2 + 1] = Math.sin(angle) * radius + 2048;
+                }
+
+                graph.setPointPositions(pointPositions);
+
+                // Set point colors by vault
+                const pointColors = new Float32Array(filteredPoints.length * 3);
+                for (let i = 0; i < filteredPoints.length; i++) {
+                    const color = VAULT_COLORS[filteredPoints[i].vault] || [0.5, 0.5, 0.5];
+                    pointColors[i * 3] = color[0];
+                    pointColors[i * 3 + 1] = color[1];
+                    pointColors[i * 3 + 2] = color[2];
+                }
+                graph.setPointColors(pointColors);
+
+                // Set point sizes based on connections
+                const pointSizes = new Float32Array(filteredPoints.length);
+                for (let i = 0; i < filteredPoints.length; i++) {
+                    const connections = filteredPoints[i].connections || 1;
+                    pointSizes[i] = Math.min(30, 5 + Math.sqrt(connections) * 5);
+                }
+                graph.setPointSizes(pointSizes);
+
+                // Set links
+                const links = new Float32Array(filteredLinks.length * 2);
+                for (let i = 0; i < filteredLinks.length; i++) {
+                    // Remap indices to filtered array
+                    const sourceMap = new Map();
+                    filteredPoints.forEach((p, i) => sourceMap.set(p.originalIndex, i));
+
+                    const source = sourceMap.get(filteredLinks[i].source);
+                    const target = sourceMap.get(filteredLinks[i].target);
+
+                    if (source !== undefined && target !== undefined) {
+                        links[i * 2] = source;
+                        links[i * 2 + 1] = target;
+                    }
+                }
+                graph.setLinks(links);
+
+                // Set link colors by type
+                const linkColors = new Float32Array(filteredLinks.length * 3);
+                for (let i = 0; i < filteredLinks.length; i++) {
+                    const linkType = filteredLinks[i].type || 'wikilink';
+                    const color = LINK_COLORS[linkType] || [0.3, 0.3, 0.4];
+                    linkColors[i * 3] = color[0];
+                    linkColors[i * 3 + 1] = color[1];
+                    linkColors[i * 3 + 2] = color[2];
+                }
+                graph.setLinkColors(linkColors);
+
+                // Build note index (using filtered indices)
+                noteIndex.clear();
+                for (let i = 0; i < filteredPoints.length; i++) {
+                    noteIndex.set(i, filteredPoints[i]);
+                }
+
+                // Render!
+                graph.render();
+
+                // Hide loading, show stats
+                loading.style.display = 'none';
+                updateStats(filteredPoints, filteredLinks);
+
+                const elapsed = Date.now() - startTime;
+                console.log(`Graph loaded in ${elapsed}ms`);
+
+            } catch (error) {
+                console.error('Graph init error:', error);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').innerHTML = `
+                    <h3>⚠️ Error Loading Graph</h3>
+                    <p>${error.message}</p>
+                    <button onclick="location.reload()">Retry</button>
+                `;
+                document.getElementById('error').style.display = 'block';
+            }
+        }
+
+        function updateStats(points, links) {
+            const vaults = new Set(points.map(p => p.vault));
+            const totalLinks = links.length;
+
+            document.getElementById('stats').textContent =
+                `${points.length} notes • ${totalLinks.toLocaleString()} connections • ${vaults.size} vaults`;
+        }
+
+        function showNodeInfo(pointIndex) {
+            const note = noteIndex.get(pointIndex);
+            if (!note) return;
+
+            const info = document.getElementById('node-info');
+            document.getElementById('node-title').textContent = note.title;
+            document.getElementById('node-vault').textContent =
+                `${note.vault} • ${note.connections} connections`;
+
+            const content = note.content?.substring(0, 300) || '';
+            document.getElementById('node-content').textContent =
+                content.length > 0 ? content : 'No content preview';
+
+            const tagsContainer = document.getElementById('node-tags');
+            tagsContainer.innerHTML = '';
+            if (note.tags) {
+                try {
+                    const tags = JSON.parse(note.tags);
+                    tags.slice(0, 8).forEach(tag => {
+                        if (tag && typeof tag === 'string') {
+                            const tagEl = document.createElement('span');
+                            tagEl.className = 'tag';
+                            tagEl.textContent = tag;
+                            tagsContainer.appendChild(tagEl);
+                        }
+                    });
+                } catch {
+                    // Tags not parseable as JSON
+                    if (typeof note.tags === 'string' && note.tags) {
+                        const tagEl = document.createElement('span');
+                        tagEl.className = 'tag';
+                        tagEl.textContent = note.tags.substring(0, 50);
+                        tagsContainer.appendChild(tagEl);
+                    }
+                }
+            }
+
+            info.classList.add('visible');
+        }
+
+        // Vault selector with debounce
+        let vaultTimeout;
+        document.querySelectorAll('.vault-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.vault-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentVault = btn.dataset.vault;
+
+                // Debounced reload
+                clearTimeout(vaultTimeout);
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('node-info').classList.remove('visible');
+
+                vaultTimeout = setTimeout(async () => {
+                    try {
+                        graphData = await fetchGraphData(currentVault, searchQuery);
+                        // Re-init with new data
+                        location.reload(); // Simplest: reload page
+                    } catch (e) {
+                        console.error('Vault change error:', e);
+                        document.getElementById('loading').style.display = 'none';
+                    }
+                }, 300);
+            });
+        });
+
+        // Search with debounce
+        let searchTimeout;
+        document.getElementById('search').addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                const query = e.target.value.toLowerCase().trim();
+
+                if (!query) {
+                    document.getElementById('loading').style.display = 'none';
+                    return;
+                }
+
+                // Show loading
+                document.getElementById('loading').style.display = 'block';
+
+                // Filter and show matching stats
+                const matchingCount = graphData.points.filter(p =>
+                    p.title.toLowerCase().includes(query) ||
+                    (p.content && p.content.toLowerCase().includes(query))
+                ).length;
+
+                document.getElementById('loading').innerHTML = `
+                    <div class="loading-spinner"></div>
+                    <p>Found ${matchingCount} matching notes</p>
+                    <p class="loading-small">Reloading filtered graph...</p>
+                `;
+
+                // For large graphs, we filter by reloading with query parameter
+                setTimeout(() => {
+                    if (query) {
+                        // Reload with search filter
+                        location.href = `/graph-view?q=${encodeURIComponent(query)}`;
+                    }
+                }, 1000);
+            }, 500);
+        });
+
+        // Close node info on escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                document.getElementById('node-info').classList.remove('visible');
+            }
+        });
+
+        // Start
+        initGraph();
+    </script>
+</body>
+</html>

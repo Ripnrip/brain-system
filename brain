@@ -1,0 +1,33 @@
+#!/bin/bash
+# Multi-Vault Brain CLI
+
+VAULTS="$HOME/Library/Mobile Documents/iCloud~md~obsidian/Documents"
+MULTI_BRAIN="$HOME/.brain/multi-brain.py"
+
+# Show vaults if no args
+if [ $# -eq 0 ]; then
+  python3 "$MULTI_BRAIN" vaults
+  exit 0
+fi
+
+# Handle commands
+case "$1" in
+  vaults|search|tasks|add-task|sync|stats)
+    python3 "$MULTI_BRAIN" "$@"
+    ;;
+  cd)
+    # Change to vault directory
+    vault="${2:-realm}"
+    cd "$VAULTS/$vault" 2>/dev/null || echo "Vault '$vault' not found"
+    exec $SHELL
+    ;;
+  open)
+    # Open vault in Obsidian
+    vault="${2:-realm}"
+    open -a "Obsidian" "$VAULTS/$vault"
+    ;;
+  *)
+    # Try to run as vault-local command
+    python3 "$MULTI_BRAIN" "$@"
+    ;;
+esac
